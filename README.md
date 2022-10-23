@@ -270,15 +270,316 @@ std::cout << out_json << std::endl;
 
 ## 3.1 认识`MVC`
 
-`MVC`即`Model、View、Controller`即模型、视图、控制器。
+**`MVC`**即模型(`Model`)－视图(`view`)－控制器(`controller`)的缩写，是一种设计模式。它是用一种业务逻辑、数据与界面显示分离的方法来组织代码，将众多的业务逻辑聚集到一个部件里面，在需要改进和个性化定制界面及用户交互的同时，不需要重新编写业务逻辑，达到减少编码的时间，提高代码复用性。
+
+- M：和数据交互的模块，比如对题库的增删改查。
+- V：通常是拿到数据之后，要进行构建网页，渲染网页内容，展示给用户的(浏览器)。
+- C：控制器接受用户的输入并调用模型和视图去完成用户的需求。控制器本身不输出任何东西和做任何处理。它只是接收请求并决定调用哪个模型构件去处理请求，然后再确定用哪个视图来显示返回的数据。
+
+使用的`MVC`的目的：在于将M和V的实现代码分离，从而使同一个程序可以使用不同的表现形式。比如，底层题库存储可以使用文件，也可以使用数据库，不会影响最后的展现。
+
+## 3.2 设置服务路由
+
+一个基本的判题系统，需要有如下服务（代码均为测试所用）：
+
+1. 获取所有题目列表
+
+   ```c++
+   Server svr;
+   // 获取所有题目列表
+   svr.Get("/all_questions", [](const Request& req, Response& resp){
+       // 使用control模块(调用view)，将题库列表渲染成网页返回
+       resp.set_content("所有题目列表", "text/plain;charset=utf-8");
+   });
+   ```
+
+2. 获取指定题目的编写界面，使用正则表达式匹配题号
+
+   ```c++
+   svr.Get(R"(/questions/(\d+))", [&ctrl](const Request& req, Response& resp){
+       std::string number = req.matches[1]; // 获得匹配的题号
+       resp.set_content("题号：" + number, "text/plain;charset=utf-8");
+   }) ;
+   ```
+
+3. 获取指定题目的判题界面，执行编译模块
+
+   ```c++
+   svr.Get(R"(/judge/(\d+))", [&ctrl](const Request& req, Response& resp){
+       std::string number = req.matches[1]; // 获得匹配的题号
+       // 实际这里调用编译模块，返回的应该是一个json串
+       resp.set_content("判题题号：" + number, "text/plain;charset=utf-8");
+   }) ;
+   ```
+
+ 4. 设置web页面根目录
+
+    ```c++
+     svr.set_base_dir("./wwwroot");
+    ```
+
+## 3.4 `Model`模块
+
+这设计数据处理模块之前，需要先设计题目字段，见` 4.2 文件版题库`。
+
+`model`模块对数据处理，拿到题号，以及题目对应细节。
+
+对每个题目，可设计如下结构体来表示：
+```c++
+struct Question
+{
+    std::string number; // 题目编号
+    std::string title; // 题目标题
+    std::string star; // 题目难度等级
+    std::string desc; // 题目描述
+    int cpu_limit; // 运行时间限制 (秒)
+    int mem_limit; // 内存限制 (KB)
+    std::string header; // 为题目提供的原有代码
+    std::string tail; // 为题目准备的测试用例
+};
+```
+
+使用哈希表存储题号和题目信息的映射关系，方便读取任意题
+```c++
+std::unordered_map<std::string, Question> questions;
+```
+
+这里只需要设计三个主要功能：
+
+1. 从文件加载所有题目列表到内存，放在`questions`中。
+   ```c++
+   // 从指定文件中读取 
+   bool LoadQuestionsList(const std::string& list_path); 
+   ```
+
+   
+
+2. 提供一个接口，获取所有的题目列表信息。
+   ```c++
+   // out是一个输出参数
+   bool GetAllQuestions(std::vector<Question>* out); 
+   ```
+
+   
+
+3. 查询并返回任意题号对应的信息。
+   ```c++
+   // 通过题目编号，获取对应题目信息
+   bool GetOneQuestion(const std::string& number, Question* q)
+   ```
+
+   
+
+## 3.5 `Controller`（负载均衡）
+
+ 
 
 
 
 
 
-[理解`MVC`模式](https://zhuanlan.zhihu.com/p/35680070)
+## 3.6 `View`模块
+
+### 3.6.1  `ctemplate`的安装和使用
+
+源码安装：
+
+```c++
+git clone https://github.com/OlafvdSpek/ctemplate 下载源码
+./autogen.sh
+./configure
+make         //编译
+make install     //安装到系统中
+// 需要g++版本，有些命令需要root权限
+```
+
+`Ctemplate`是Google开源的一个C++版本`html`模板替换库。在C++代码中操作`html`模板是一件非常简单和高效的事。
+
+基本语法：
+
+> 模板中的变量使用{{}}括起来，
+>
+> 而`{{#循环名}}`和`{{/循环名}}`表示一个循环。
+
+需要处理的`html`
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>测试ctemplate</title>
+</head>
+<body>
+    <div>{{table_name}}</div>
+    <table>
+        {{#TABLE}}
+        <tr>
+            <td>{{field1}}</td>
+            <td>{{field2}}</td>
+            <td>{{field3}}</td>
+        </tr>
+        {{/TABLE}}
+    </table>
+</body>
+</html>
+```
+
+`ctemplate`的使用
+
+```c++
+#include <iostream>
+#include <string>
+#include <ctemplate/template.h>
+
+
+int main()
+{
+    const std::string in_html = "./test.html";
+    //建立ctemplate参数目录结构，键值对的形式
+    ctemplate::TemplateDictionary dict("root");
+    // 向结构中添加对应变量的值
+    dict.SetValue("table_name", "表单"); // 前面是设置在html中变量，后面是要替换的值
+
+    // 向循环中添加变量值
+    for (int i = 0; i < 2; i ++ ) {
+        // 创建一个空的字典，它的父类是dict，返回值为该字典的地址
+        // 其中传入的参数，就是循环的名称
+        ctemplate::TemplateDictionary* table_dict = dict.AddSectionDictionary("TABLE");
+        // 同样可以为对应变量设置数据
+        table_dict->SetValue("field1", "1");
+        table_dict->SetIntValue("field2", 3);
+        // 设置格式化的值
+        table_dict->SetFormattedValue("field3", "%d", i);
+    }
+
+    // 获取被渲染的对象
+    ctemplate::Template* tpl = ctemplate::Template::GetTemplate(in_html, ctemplate::DO_NOT_STRIP);//DO_NOT_STRIP：保持html网页原貌
+    //开始渲染，返回新的网页结果到out_html
+    std::string out_html;
+    tpl->Expand(&out_html, &dict);
+    std::cout << "渲染的带参html是:" << std::endl;
+    std::cout << out_html << std::endl;
+    return 0;
+}
+```
+
+最后处理的结果，注意编译的时候需要链接`ctemplate`库（`-lctemplate`），由于这个库中使用了原生线程库，所以还需要链接`pthread`（`-lpthread`）。
+
+```html
+渲染的带参html是:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>测试ctemplate</title>
+</head>
+<body>
+    <div>表单</div>
+    <table>
+        
+        <tr>
+            <td>1</td>
+            <td>3</td>
+            <td>0</td>
+        </tr>
+        
+        <tr>
+            <td>1</td>
+            <td>3</td>
+            <td>1</td>
+        </tr>
+        
+    </table>
+</body>
+</html>
+```
+
+
 
 # 四、题目录入
 
+## 4.1 文件版题库
 
+首先需要建立一个题目列表，可以用如下几个字段来描述一道题目：
+
+> 题目编号（唯一）
+> 题目标题
+> 题目难度（简单、中等、困难）
+> 时间要求
+> 空间要求
+
+可以用一个文本，一行表示一个题目，不同字段之间用空格分隔。
+```c++
+1 A+B 简单 1 30000
+```
+
+然后就是对每个题目的具体细节，对于核心代码模式需要如下字段
+
+> 上面描述的五个字段
+> 对题目的描述
+> 提供的代码
+> 测试代码
+
+可以对每个题目，建立对应题号的目录，存放题目描述和预先代码。
+![image-20221023160421395](https://s2.loli.net/2022/10/23/K1sJIWvHkq86lQd.png)
+
+其中`head.cpp`存放预先提供的代码，`tail.cpp`存放测试代码，最后编译的是两个的组合。
+
+例如：
+
+```c++
+// desc.txt
+输入两个整数，求这两个整数的和是多少。
+```
+
+```c++
+// head.cpp
+#include <iostream>
+using namespace std;
+
+class Solution {
+public:
+    int twoSum(int a, int b) {
+        // 代码编写区
+    }
+};
+```
+
+```c++
+// tail.cpp
+#ifndef COMPILER_ONLINE
+#include "head.cpp" // 仅仅为了写测试用例的时候引入对应类，不报错，真正编译的时候需要去掉，g++ -D COMPILER_ONLINE
+#endif
+
+bool test1()
+{
+    int a = 10, b= 20;
+    if (a + b == Solution().twoSum(a, b)) 
+        return true;
+    else 
+        return false;
+}
+
+bool test2()
+{
+    int a = 2220, b= 31230;
+    if (a + b == Solution().twoSum(a, b)) 
+        return true;
+    else 
+        return false;
+}
+
+int main()
+{
+    if (test1() && test2()) {
+        cout << "测试通过" << endl;
+    } else {
+        cout << "答案错误" << endl;
+    }
+    return 0;
+}
+```
+
+## 4.2 `MySQL`版题库
 
