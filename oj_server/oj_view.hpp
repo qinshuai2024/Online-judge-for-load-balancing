@@ -3,7 +3,7 @@
 #include <iostream>
 #include <ctemplate/template.h>
 
-#include "oj_model.hpp"
+#include "oj_model2.hpp"
 
 const std::string template_html = "./template_html/";
 

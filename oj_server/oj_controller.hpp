@@ -10,8 +10,10 @@
 #include "../common/util.hpp"
 #include "../common/log.hpp"
 #include "../common/httplib.h"
+// #include "oj_model.hpp"  
+#include "oj_model2.hpp"
 #include "oj_view.hpp"
-#include "oj_model.hpp"
+
 
 namespace ns_control
 {
