@@ -48,7 +48,7 @@ namespace ns_compiler
 
                 // 子进程程序替换
                 execlp("g++", "g++", "-o", ns_util::PathUtil::GetExe(file_name).c_str(),\
-                ns_util::PathUtil::GetSrc(file_name).c_str(), "-std=c++11", nullptr); // , "-D", "COMPILER_ONLINE"
+                ns_util::PathUtil::GetSrc(file_name).c_str(), "-D", "COMPILER_ONLINE", "-std=c++11", nullptr); 
                 LOG(ERROR) << "启动编译器g++失败，可能是参数错误" << "\n";
                 exit(2);
             }

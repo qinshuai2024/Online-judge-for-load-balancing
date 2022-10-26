@@ -113,7 +113,7 @@ namespace ns_compile_and_run
             // 返回结果
             *out_json = out_writer.write(out_value);
 
-            //RemoveFile(file_name);
+            RemoveFile(file_name);
         }
 
         // 用执行状态码生成对应描述内容
