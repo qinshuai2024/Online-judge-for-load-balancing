@@ -348,7 +348,7 @@ std::unordered_map<std::string, Question> questions;
 
 1. 从文件加载所有题目列表到内存，放在`questions`中。
    ```c++
-   // 从指定文件中读取 
+   // 从指定文件中读取 若是MySQL存储，就不用这个接口了
    bool LoadQuestionsList(const std::string& list_path); 
    ```
 
@@ -720,9 +720,9 @@ svr.Post(R"(/judge/(\d+))", [&ctrl](const Request& req, Response& resp){
 
 ### 3.6.2 压力测试
 
-由于`postman`发送请求很慢，无法进行压力测试，不能看到负载是否均衡。等到实现前端后端交互，使用前端的提交代码可以进行压力测试。如下图，可以看到负载均衡：
+由于`postman`发送请求很慢，无法进行压力测试，不能看到负载是否均衡。等到实现前端后端交互，使用前端的提交代码（疯狂点击）可以进行压力测试。如下图，可以看到负载均衡：
 
-==补充：压力测试图片==
+![](https://s2.loli.net/2022/10/27/XvMaORLlo1GgKrf.png)
 
 
 
@@ -834,7 +834,27 @@ int main()
 
 ## 4.2 `MySQL`版题库
 
+设计表结构
 
+> 数据库：`oj`， 表：`oj_questions`
+
+```sql
+create table if not exists `oj_questions`(
+	id int primary key auto_increment comment '题目的ID',
+    title varchar(64) not null comment '标题',
+	star varchar(8) not null comment '难度',
+    header text not null comment '给用户看到的代码',
+    tail text not null comment '测试代码',
+    time_limit int default 1 comment '时间限制',
+    cpu_limit int default 5000 comment '空间限制'
+)
+```
+
+关于C/C++访问MySQL数据库，可以看下面这篇我的笔记。
+
+[使用C语言连接MySQL](http://t.csdn.cn/Tnhwn)
+
+在保证接口不变的同时，完成读取数据，来改造model模块。
 
 # 五、前端界面设计
 
@@ -842,10 +862,84 @@ int main()
 
 ## 5.1 `ACE`编辑器
 
-[项目地址](https://github.com/ajaxorg/ace)
+[ACE项目地址](https://github.com/ajaxorg/ace)
 
+> Ace是一个用JavaScript编写的可嵌入代码编辑器。它与Sublime，Vim和TextMate等本地编辑器的功能和性能相匹配。它可以轻松地嵌入任何网页和JavaScript应用程序中。
 
+通过`CDN`引入`ACE相关js文件`
+
+> `CDN`——**Content Delivery Network，内容分发网络**。引入服务器的js文件，方便直接编写，使用CND技术引入，加快访问速度。
+
+```html
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.6/ace.js" type="text/javascript"
+    charset="utf-8"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.6/ext-language_tools.js" type="text/javascript"
+    charset="utf-8"></script>
+
+// 引入JQuery的js文件
+<script src="http://code.jquery.com/jquery-2.1.1.min.js"></script>
+```
+
+ACE 相关使用
+```html
+<script>
+    //初始化对象
+    editor = ace.edit("code");
+
+    // 设置主题风格和语言
+    theme = "clouds"
+    language = "c_cpp"
+    editor.setTheme("ace/theme/" + theme);
+    editor.session.setMode("ace/mode/" + language);
+
+    // 字体大小
+    editor.setFontSize(16);
+    // 设置默认制表符的大小:
+    editor.getSession().setTabSize(4);
+
+    // 设置只读（true时只读，用于展示代码）
+    editor.setReadOnly(false);
+
+    // 启用提示菜单
+    ace.require("ace/ext/language_tools");
+    editor.setOptions({
+        enableBasicAutocompletion: true,
+        enableSnippets: true,
+        enableLiveAutocompletion: true
+    });
+</script>
+```
 
 ## 5.2 前后端交互
 
+这里需要前后端交互的地方只有提交代码，只需设置一个按钮，设置点击事件，使用Ajax的POST方法向后端发送代码，然后获取后端结果。根据结果的状态码，显示不同内容。
+
+```js
+function submit(){
+    // alert("嘿嘿!");
+    // 1. 收集当前页面的有关数据, 1. 题号 2.代码
+    var code = editor.getSession().getValue();
+    // console.log(code);
+    var number = $(".container .part1 .left_desc h3 #number").text();
+    // console.log(number);
+    var judge_url = "/judge/" + number;
+    // console.log(judge_url);
+    // 2. 构建json，并通过ajax向后台发起基于http的json请求
+    $.ajax({
+        method: 'Post',   // 向后端发起请求的方式
+        url: judge_url,   // 向后端指定的url发起请求
+        dataType: 'json', // 告知server，我需要什么格式
+        contentType: 'application/json;charset=utf-8',  // 告知server，我给你的是什么格式
+        data: JSON.stringify({
+            'code':code,
+            'input': ''
+        }),
+        success: function(data){
+            //成功得到结果
+            // console.log(data);
+            show_result(data);
+        }
+    });
+}
+```
 
