@@ -36,9 +36,9 @@ namespace ns_model
     const std::string oj_questions = "oj_questions";
     const std::string host = "127.0.0.1";
     const std::string user = "sqin";
-    const std::string passwd = "QSqin7172001#";
+    const std::string passwd = "xxxxxx";
     const std::string db = "oj";
-    const int port = 3466;
+    const int port = 3306;
 
     class Model
     {
